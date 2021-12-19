@@ -3,6 +3,7 @@ import cv2
 import imutils
 import numpy as np
 import math
+import time
 
 path = dict()
 
@@ -20,7 +21,8 @@ def structureArray(index):
                 path.update({i: {
                     'point': [],
                     'pervPoint': deque(maxlen=1),
-                    'alerted': False
+                    'alerted': False,
+                    'storedInDataBase': False
                 }})
                 break
     return index
@@ -43,17 +45,46 @@ def checkingIsItNew(cx, cy):
         return [False, structureArray(0)]
 
 
-def drawMap(imageFrame, index, cx, cy):
+def storeInDataBase(index, color, enterZone=False):
+    f = open("database.txt", "a")
+
+    if enterZone:
+        f.write(f'\n ***********************************'
+                f'\nid: {index}, Unauthorized Person Enter Zone.  '
+                f'\n Color: {label}'
+                f'\n Time: {time.asctime(time.localtime())}')
+    else:
+        if len(path.get(index).get('point')) > 10 and not path.get(index).get('storedInDataBase'):
+
+            if color != 'Blue':
+                f.write(f'\n ***********************************'
+                        f'\nid: {index}, Unauthorized Person Detected. '
+                        f'\n Color: {label}'
+                        f'\n Time: {time.asctime(time.localtime())}')
+            else:
+                f.write(f'\n ***********************************'
+                        f'\nid: {index}, Authorized Person Detected. '
+                        f'\n Color: {label}'
+                        f'\n Time: {time.asctime(time.localtime())}')
+
+            path.get(index)['storedInDataBase'] = True
+    f.close()
+
+
+def drawMap(imageFrame, index, cx, cy, color):
     if len(path.get(index).get('point')) > 40:
 
         if calculateDistance(202, 354, cx, cy) < 560 and not path.get(index).get('alerted'):
 
             for i in range(1, len(path.get(index).get('point'))):  # for all the points in the deque
-                if path.get(index).get('point')[i - 1] is None or path.get(index).get('point') is None:  # if we have none as the current point or previous
+                if path.get(index).get('point')[i - 1] is None or path.get(index).get(
+                        'point') is None:  # if we have none as the current point or previous
                     continue  # Start the while loop all over again.
 
-                cv2.line(imageFrame, path.get(index).get('point')[i - 1], path.get(index).get('point')[i], (0, 0, 225), 4)  # draw a line between
-                path.get(index)['alerted'] = True
+                cv2.line(imageFrame, path.get(index).get('point')[i - 1], path.get(index).get('point')[i], (0, 0, 225),
+                         4)  # draw a line between
+            storeInDataBase(index, color, True)
+            path.get(index)['alerted'] = True
 
             cv2.imshow("detected", imutils.resize(imageFrame, 300, cv2.INTER_CUBIC))
 
@@ -132,16 +163,18 @@ while True:
         r_mean = np.mean(r)
         if b_mean > g_mean and b_mean > r_mean:
             label = 'Blue'
+            storeInDataBase(index, label)
         #     ignore
         elif g_mean > b_mean and g_mean > r_mean:
             label = 'Green'
-            drawMap(cloneFrame, index, cx, cy)
+            storeInDataBase(index, label)
+            drawMap(cloneFrame, index, cx, cy, label)
         elif r_mean > g_mean and r_mean > b_mean:
             label = 'Red'
-            drawMap(cloneFrame, index, cx, cy)
+            storeInDataBase(index, label)
+            drawMap(cloneFrame, index, cx, cy, label)
 
-
-        # cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
         cv2.putText(frame,
                     f'index: {index}, '
                     f'color: {label},'
